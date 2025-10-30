@@ -1,5 +1,6 @@
 #include "httplib.h"
 #include <mysql/mysql.h>
+#include <shared_mutex>
 #include <iostream>
 #include <unordered_map>
 #include <mutex>
@@ -118,7 +119,7 @@ class Cache{
     }
 };
 Cache cache_obj;
-mutex cache_mutex;
+shared_mutex cache_rwlock;
 
 MYSQL* connect_db() {
     MYSQL* conn = mysql_init(nullptr);
@@ -141,7 +142,7 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
     string value = req.get_param_value("value");
     string query;
     {
-        lock_guard<mutex> lock(cache_mutex);
+        unique_lock<shared_mutex> lock(cache_rwlock);
         bool added = cache_obj.add(key,value);
         if(!added){
             res.set_content("Key Already Exists! Not created", "text/plain");
@@ -164,7 +165,7 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
     string value;
 
     {
-        lock_guard<mutex> lock(cache_mutex);
+        shared_lock<shared_mutex> lock(cache_rwlock);
         bool present = cache_obj.read(key, &value);
         if(present){
             res.set_content("Cache hit: " + value, "text/plain");
@@ -182,7 +183,7 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
     if (row) {
         value = row[0];
         {
-            lock_guard<mutex> lock(cache_mutex);
+            unique_lock<shared_mutex> lock(cache_rwlock);
             bool result = cache_obj.add(key,value);
         }
         res.set_content("DB hit: " + value, "text/plain");
@@ -199,7 +200,7 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
     string value = req.get_param_value("value");
     string query;
     {
-        lock_guard<mutex> lock(cache_mutex);
+        unique_lock<shared_mutex> lock(cache_rwlock);
         bool present = cache_obj.update(key,value);
         if(!present){
             bool result = cache_obj.add(key,value);
@@ -218,7 +219,7 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
 void delete_handler(const httplib::Request& req, httplib::Response& res) {
     string key = req.get_param_value("key");
     {
-        lock_guard<mutex> lock(cache_mutex);
+        unique_lock<shared_mutex> lock(cache_rwlock);
         bool result = cache_obj.remove(key);
     }
 
