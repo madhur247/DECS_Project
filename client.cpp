@@ -2,11 +2,11 @@
 #include <iostream>
 using namespace std;
 int main() {
-    httplib::Client cli("localhost", 8080);
 
     while (true) {
+        httplib::Client cli("localhost", 8080);
         string command, key, value;
-        cout << "\nEnter command (create/read/delete/exit): ";
+        cout << "\nEnter command (create/read/update/delete/exit): ";
         cin >> command;
 
         if (command == "exit") break;
@@ -24,6 +24,13 @@ int main() {
         } else if (command == "read") {
             string query = "/read?key=" + key;
             auto res = cli.Get(query.c_str());
+            if (res) cout << res->body << "\n";
+            else cerr << "Request failed\n";
+        } else if (command == "update") {
+            cout << "Enter value: ";
+            cin >> value;
+            string body = "key=" + key + "&value=" + value;
+            auto res = cli.Put("/update", body, "application/x-www-form-urlencoded");
             if (res) cout << res->body << "\n";
             else cerr << "Request failed\n";
         } else if (command == "delete") {
