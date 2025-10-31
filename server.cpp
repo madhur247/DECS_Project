@@ -145,18 +145,18 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
         bool added = cache_obj.add(key,value);
         if(!added){
             res.set_content("Key Already Exists! Not created", "text/plain");
-        }
-        else{
-            query = "INSERT INTO kvpairs VALUES ('" + key + "', '" + value + "')";
-            MYSQL* conn = connect_db();
-            if(mysql_query(conn, query.c_str())!=0){
-                cerr << "Query failed: " << mysql_error(conn) << "\n";
-                res.set_content("Key Already Exists! Not created", "text/plain");
-            }else{
-                res.set_content("Created", "text/plain");
-            }
+            return;
         }
     }
+    query = "INSERT INTO kvpairs VALUES ('" + key + "', '" + value + "')";
+    MYSQL* conn = connect_db();
+    if(mysql_query(conn, query.c_str())!=0){
+        cerr << "Query failed: " << mysql_error(conn) << "\n";
+        res.set_content("Key Already Exists! Not created", "text/plain");
+    }else{
+        res.set_content("Created", "text/plain");
+    }
+    mysql_close(conn);
 }
 
 void read_handler(const httplib::Request& req, httplib::Response& res) {
@@ -175,7 +175,7 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
     MYSQL* conn = connect_db();
     string query = "SELECT value FROM kvpairs WHERE `key`='" + key + "'";
     if(mysql_query(conn, query.c_str())!=0){
-        cerr << "Query failed: " << mysql_error(conn) << "\n";
+       cerr << "Query failed: " << mysql_error(conn) << "\n";
     }
     MYSQL_RES* result = mysql_store_result(conn);
     MYSQL_ROW row = mysql_fetch_row(result);
@@ -198,21 +198,27 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
     string key = req.get_param_value("key");
     string value = req.get_param_value("value");
     string query;
+    bool present;
     {
         lock_guard<mutex> lock(cache_mutex);
-        bool present = cache_obj.update(key,value);
-        if(!present){
-            bool result = cache_obj.add(key,value);
-        }
-        MYSQL* conn = connect_db();
-        query = "UPDATE kvpairs SET value='" + value + "' WHERE `key`='" + key + "'";
-        if(mysql_query(conn, query.c_str())!=0){
-            cerr << "Query failed: " << mysql_error(conn) << "\n";
-            res.set_content("Key not found", "text/plain");
-        }else{
-            res.set_content("Updated", "text/plain");
+        present = cache_obj.update(key,value);
+    }
+    MYSQL* conn = connect_db();
+    query = "UPDATE kvpairs SET value='" + value + "' WHERE `key`='" + key + "'";
+    if(mysql_query(conn, query.c_str())!=0){
+        cerr << "Query failed: " << mysql_error(conn) << "\n";
+        res.set_content("Key not found", "text/plain");
+    }else{
+        res.set_content("Updated", "text/plain");
+        {
+            if(!present){
+                lock_guard<mutex> lock(cache_mutex);
+                bool result = cache_obj.add(key,value);
+            }
         }
     }
+    mysql_close(conn);
+    
 }
 
 void delete_handler(const httplib::Request& req, httplib::Response& res) {
@@ -225,7 +231,7 @@ void delete_handler(const httplib::Request& req, httplib::Response& res) {
     MYSQL* conn = connect_db();
     string query = "DELETE FROM kvpairs WHERE `key`='" + key + "'";
     if(mysql_query(conn, query.c_str())!=0){
-        cerr << "Query failed: " << mysql_error(conn) << "\n";
+       cerr << "Query failed: " << mysql_error(conn) << "\n";
     }
     if(mysql_affected_rows(conn)==0){
         res.status = 404;
@@ -241,8 +247,8 @@ int main() {
     MYSQL* conn = connect_db();
     string query = "CREATE TABLE IF NOT EXISTS kvpairs ( `key` VARCHAR(20) PRIMARY KEY, value TEXT NOT NULL)";
     if(mysql_query(conn, query.c_str())!=0){
-        cerr << "Query failed: " << mysql_error(conn) << "\n";
-    }
+       cerr << "Query failed: " << mysql_error(conn) << "\n";
+   }
     mysql_close(conn);
     httplib::Server svr;
     svr.Post("/create", create_handler);
