@@ -114,7 +114,7 @@ int main(int argc, char* argv[]) {
         total_requests+=requests[i];
         total_resp_time+=resptimes[i];
     }
-    cout<< "Avg throughput for "<<threads_num<<" threads = "<<(total_requests/total_resp_time/1000)<<"req/s"<<endl;
+    cout<< "Avg throughput for "<<threads_num<<" threads = "<<(total_requests/total_resp_time*1000)<<"req/s"<<endl;
     cout<< "Avg response time for "<<threads_num<<" threads = "<<(total_resp_time/total_requests)<<"ms"<<endl;
     return 0;
 }

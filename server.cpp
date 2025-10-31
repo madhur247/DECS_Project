@@ -22,7 +22,7 @@ class Cache{
     Cache(){
         head=nullptr;
         tail=nullptr;
-        max_cache_size = 3;
+        max_cache_size = 500;
         curr_cache_size = 0;
     }
 
