@@ -37,7 +37,7 @@ void thread_handler(int seconds, int *thread_requests, float *thread_resptime){
         string command, key;
         uniform_int_distribution<> dist(1, 4);
         int cmd = dist(gen);
-        uniform_int_distribution<> dist2(1, 1000);
+        uniform_int_distribution<> dist2(1, 10000);
         int key_int  = dist2(gen);
         key = to_string(key_int);
         uniform_int_distribution<> dist3(1, 100);
@@ -110,11 +110,14 @@ int main(int argc, char* argv[]) {
 
     long total_requests = 0;
     double total_resp_time = 0;
+    double throughput = 0;
     for (int i=0;i< threads_num;i++){
         total_requests+=requests[i];
         total_resp_time+=resptimes[i];
+        throughput+=(requests[i]/(resptimes[i]/1000));
     }
-    cout<< "Avg throughput for "<<threads_num<<" threads = "<<(total_requests/(total_resp_time/1000))<<"req/s"<<endl;
+    cout<< "Avg throughput (resp time) for "<<threads_num<<" threads = "<<throughput<<"req/s"<<endl;
+    cout<< "Avg throughput (total duration) for "<<threads_num<<" threads = "<<(total_requests/seconds)<<"req/s"<<endl;
     cout<< "Avg response time for "<<threads_num<<" threads = "<<(total_resp_time/total_requests)<<"ms"<<endl;
     return 0;
 }

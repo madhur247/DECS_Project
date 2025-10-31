@@ -21,7 +21,7 @@ class Cache{
     Cache(){
         head=nullptr;
         tail=nullptr;
-        max_cache_size = 3;
+        max_cache_size = 5000;
         curr_cache_size = 0;
     }
 
@@ -152,9 +152,9 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
     MYSQL* conn = connect_db();
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
-        res.set_content("Key Already Exists! Not created", "text/plain");
+        res.set_content("Key Already Exists!", "text/plain");
     }else{
-        res.set_content("Created", "text/plain");
+        res.set_content("OK", "text/plain");
     }
     mysql_close(conn);
 }
@@ -167,7 +167,7 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
         lock_guard<mutex> lock(cache_mutex);
         bool present = cache_obj.read(key, &value);
         if(present){
-            res.set_content("Cache hit: " + value, "text/plain");
+            res.set_content(value, "text/plain");
             return;
         }
     }
@@ -185,7 +185,7 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
             lock_guard<mutex> lock(cache_mutex);
             bool result = cache_obj.add(key,value);
         }
-        res.set_content("DB hit: " + value, "text/plain");
+        res.set_content(value, "text/plain");
     } else {
         res.status = 404;
         res.set_content("Key not found", "text/plain");
@@ -209,7 +209,7 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
         cerr << "Query failed: " << mysql_error(conn) << "\n";
         res.set_content("Key not found", "text/plain");
     }else{
-        res.set_content("Updated", "text/plain");
+        res.set_content("OK", "text/plain");
         {
             if(!present){
                 lock_guard<mutex> lock(cache_mutex);
@@ -238,7 +238,7 @@ void delete_handler(const httplib::Request& req, httplib::Response& res) {
         res.set_content("Key not found", "text/plain");
     }
     else{
-         res.set_content("Deleted", "text/plain");
+         res.set_content("OK", "text/plain");
     }
     mysql_close(conn);
 }
@@ -248,7 +248,7 @@ int main() {
     string query = "CREATE TABLE IF NOT EXISTS kvpairs ( `key` VARCHAR(20) PRIMARY KEY, value TEXT NOT NULL)";
     if(mysql_query(conn, query.c_str())!=0){
        cerr << "Query failed: " << mysql_error(conn) << "\n";
-   }
+    }
     mysql_close(conn);
     httplib::Server svr;
     svr.Post("/create", create_handler);
