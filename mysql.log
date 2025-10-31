@@ -1,0 +1,8 @@
+2025-10-31T16:43:31.419825Z 0 [Warning] [MY-010091] [Server] Can't create test file /var/lib/mysql/mysqld_tmp_file_case_insensitive_test.lower-test
+2025-10-31T16:43:31.419927Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.43-0ubuntu0.24.04.2) starting as process 35854
+2025-10-31T16:43:31.424532Z 0 [Warning] [MY-010091] [Server] Can't create test file /var/lib/mysql/mysqld_tmp_file_case_insensitive_test.lower-test
+2025-10-31T16:43:31.424540Z 0 [Warning] [MY-010159] [Server] Setting lower_case_table_names=2 because file system for /var/lib/mysql/ is case insensitive
+2025-10-31T16:43:31.424723Z 0 [Warning] [MY-010122] [Server] One can only use the --user switch if running as root
+2025-10-31T16:43:31.424738Z 0 [ERROR] [MY-013276] [Server] Failed to set datadir to '/var/lib/mysql/' (OS errno: 13 - Permission denied)
+2025-10-31T16:43:31.425191Z 0 [ERROR] [MY-010119] [Server] Aborting
+2025-10-31T16:43:31.425452Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.0.43-0ubuntu0.24.04.2)  (Ubuntu).
