@@ -1,2 +1,6 @@
 server
 client
+kv.log
+mysql.log
+loadgen
+./vscode
