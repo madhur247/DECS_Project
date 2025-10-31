@@ -157,6 +157,7 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
     }else{
         res.set_content("Created", "text/plain");
     }
+    mysql_close(conn);
 }
 
 void read_handler(const httplib::Request& req, httplib::Response& res) {
@@ -217,6 +218,7 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
             }
         }
     }
+    mysql_close(conn);
 }
 
 void delete_handler(const httplib::Request& req, httplib::Response& res) {
