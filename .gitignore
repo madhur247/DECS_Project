@@ -4,3 +4,6 @@ client
 loadgen
 kv.log
 mysql.log
+reset_db
+loadgen.log
+populate_db

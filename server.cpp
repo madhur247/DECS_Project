@@ -3,7 +3,10 @@
 #include <shared_mutex>
 #include <iostream>
 #include <unordered_map>
+#include <condition_variable>
 #include <mutex>
+#include <queue>
+#include <csignal>
 using namespace std;
 
 struct kvnode{
@@ -12,6 +15,8 @@ struct kvnode{
     string value;
     struct kvnode *next;
 };
+
+httplib::Server svr;
 
 class Cache{ 
     private:
@@ -22,7 +27,7 @@ class Cache{
     Cache(){
         head=nullptr;
         tail=nullptr;
-        max_cache_size = 500;
+        max_cache_size = 3;
         curr_cache_size = 0;
     }
 
@@ -120,6 +125,29 @@ class Cache{
 };
 Cache cache_obj;
 shared_mutex cache_rwlock;
+condition_variable cv;
+mutex mutx;
+queue<MYSQL*> Queue;
+
+MYSQL* get_connection(){
+    {
+        unique_lock<mutex> lock(mutx);
+        while(Queue.empty()){
+            cv.wait(lock);
+        }
+        MYSQL* conn =  Queue.front();
+        Queue.pop();
+        return conn;
+    }
+}
+
+void put_connection(MYSQL* conn){
+    {
+        unique_lock<mutex> lock(mutx);
+        Queue.push(conn);
+        cv.notify_all();
+    }
+}
 
 MYSQL* connect_db() {
     MYSQL* conn = mysql_init(nullptr);
@@ -137,6 +165,16 @@ MYSQL* connect_db() {
     return conn;
 }
 
+void signal_handler(int signal){
+    while(!Queue.empty()){
+        MYSQL* conn = Queue.front();
+        mysql_close(conn);
+        Queue.pop();
+    }
+    svr.stop();
+    exit(0);
+}
+
 void create_handler(const httplib::Request& req, httplib::Response& res) {
     string key = req.get_param_value("key");
     string value = req.get_param_value("value");
@@ -145,19 +183,19 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
         unique_lock<shared_mutex> lock(cache_rwlock);
         bool added = cache_obj.add(key,value);
         if(!added){
-            res.set_content("Key Already Exists! Not created", "text/plain");
+            res.set_content("Key Already Exists", "text/plain");
             return;
         }
     }
     query = "INSERT INTO kvpairs VALUES ('" + key + "', '" + value + "')";
-    MYSQL* conn = connect_db();
+    MYSQL* conn = get_connection();
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
         res.set_content("Key Already Exists! Not created", "text/plain");
     }else{
-        res.set_content("Created", "text/plain");
+        res.set_content("OK", "text/plain");
     }
-    mysql_close(conn);
+    put_connection(conn);
 }
 
 void read_handler(const httplib::Request& req, httplib::Response& res) {
@@ -168,12 +206,12 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
         shared_lock<shared_mutex> lock(cache_rwlock);
         bool present = cache_obj.read(key, &value);
         if(present){
-            res.set_content("Cache hit: " + value, "text/plain");
+            res.set_content(value, "text/plain");
             return;
         }
     }
 
-    MYSQL* conn = connect_db();
+    MYSQL* conn = get_connection();
     string query = "SELECT value FROM kvpairs WHERE `key`='" + key + "'";
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
@@ -186,13 +224,13 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
             unique_lock<shared_mutex> lock(cache_rwlock);
             bool result = cache_obj.add(key,value);
         }
-        res.set_content("DB hit: " + value, "text/plain");
+        res.set_content(value, "text/plain");
     } else {
         res.status = 404;
         res.set_content("Key not found", "text/plain");
     }
     mysql_free_result(result);
-    mysql_close(conn);
+    put_connection(conn);
 }
 
 void update_handler(const httplib::Request& req, httplib::Response& res) {
@@ -204,13 +242,13 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
         unique_lock<shared_mutex> lock(cache_rwlock);
         present = cache_obj.update(key,value);
     }
-    MYSQL* conn = connect_db();
+    MYSQL* conn = get_connection();
     query = "UPDATE kvpairs SET value='" + value + "' WHERE `key`='" + key + "'";
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
         res.set_content("Key not found", "text/plain");
     }else{
-        res.set_content("Updated", "text/plain");
+        res.set_content("OK", "text/plain");
         if(!present){
             {
                 unique_lock<shared_mutex> lock(cache_rwlock);
@@ -218,7 +256,7 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
             }
         }
     }
-    mysql_close(conn);
+    put_connection(conn);
 }
 
 void delete_handler(const httplib::Request& req, httplib::Response& res) {
@@ -228,7 +266,7 @@ void delete_handler(const httplib::Request& req, httplib::Response& res) {
         bool result = cache_obj.remove(key);
     }
 
-    MYSQL* conn = connect_db();
+    MYSQL* conn = get_connection();
     string query = "DELETE FROM kvpairs WHERE `key`='" + key + "'";
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
@@ -238,19 +276,24 @@ void delete_handler(const httplib::Request& req, httplib::Response& res) {
         res.set_content("Key not found", "text/plain");
     }
     else{
-         res.set_content("Deleted", "text/plain");
+         res.set_content("OK", "text/plain");
     }
-    mysql_close(conn);
+    put_connection(conn);
 }
 
 int main() {
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
     MYSQL* conn = connect_db();
     string query = "CREATE TABLE IF NOT EXISTS kvpairs ( `key` VARCHAR(20) PRIMARY KEY, value TEXT NOT NULL)";
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
     }
     mysql_close(conn);
-    httplib::Server svr;
+    for(int i=0;i<20;i++){
+        Queue.push(connect_db());
+    }
+    
     svr.Post("/create", create_handler);
     svr.Get("/read", read_handler);
     svr.Put("/update",update_handler);
