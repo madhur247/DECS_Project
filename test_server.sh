@@ -6,12 +6,13 @@ g++ load_gen.cpp -o loadgen -std=c++17
 g++ reset_db.cpp -o reset_db -lmysqlclient
 g++ populate_db.cpp -o populate_db -lmysqlclient
 
+sudo sync; echo 3 | sudo tee /proc/sys/vm/drop_caches
 echo "Resetting Database..."
 ./reset_db
 
 if [ "$3" = "2" ]; then
 echo "Populating Database"
-./populate_db 7000
+./populate_db 10000
 elif [ "$3" = "3" ]; then
 echo "Populating Database"
 ./populate_db 600

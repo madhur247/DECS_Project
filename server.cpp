@@ -190,7 +190,7 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
     MYSQL* conn = get_connection();
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
-        res.set_content("Key Already Exists! Not created", "text/plain");
+        res.set_content("Key Already Exists", "text/plain");
     }else{
         res.set_content("OK", "text/plain");
     }
