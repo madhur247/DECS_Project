@@ -38,3 +38,4 @@ LOAD_EXIT=$?
 echo "Stopping KV server and MySQL..."
 kill -SIGINT $KV_PID
 # kill -SIGINT $MYSQL_PID
+#watch -n 1 "clear && dstat -cdm --disk-util 1 1"
