@@ -1,6 +1,6 @@
 #include "httplib.h"
 #include <mysql/mysql.h>
-#include <shared_mutex>
+#include <mutex>
 #include <iostream>
 #include <unordered_map>
 #include <condition_variable>
@@ -182,7 +182,7 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
     string value = req.get_param_value("value");
     string query;
     {
-        lock_guard<mutex> lock(cache_lock);
+        unique_lock<mutex> lock(cache_lock);
         bool added = cache_obj.add(key,value);
         if(!added){
             res.set_content("Key Already Exists", "text/plain");
@@ -193,7 +193,7 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
     MYSQL* conn = get_connection();
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
-        res.set_content("Key Already Exists", "text/plain");
+        res.set_content("Key Already Exists! Not created", "text/plain");
     }else{
         res.set_content("OK", "text/plain");
     }
@@ -205,7 +205,7 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
     string value;
 
     {
-        lock_guard<mutex> lock(cache_lock);
+        unique_lock<mutex> lock(cache_lock);
         bool present = cache_obj.read(key, &value);
         if(present){
             res.set_content(value, "text/plain");
@@ -223,7 +223,7 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
     if (row) {
         value = row[0];
         {
-            lock_guard<mutex> lock(cache_lock);
+            unique_lock<mutex> lock(cache_lock);
             bool result = cache_obj.add(key,value);
         }
         res.set_content(value, "text/plain");
@@ -241,7 +241,7 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
     string query;
     bool present;
     {
-        lock_guard<mutex> lock(cache_lock);
+        unique_lock<mutex> lock(cache_lock);
         present = cache_obj.update(key,value);
     }
     MYSQL* conn = get_connection();
@@ -253,7 +253,7 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
         res.set_content("OK", "text/plain");
         if(!present){
             {
-                lock_guard<mutex> lock(cache_lock);
+                unique_lock<mutex> lock(cache_lock);
                 bool result = cache_obj.add(key,value);
             }
         }
@@ -264,7 +264,7 @@ void update_handler(const httplib::Request& req, httplib::Response& res) {
 void delete_handler(const httplib::Request& req, httplib::Response& res) {
     string key = req.get_param_value("key");
     {
-        lock_guard<mutex> lock(cache_lock);
+        unique_lock<mutex> lock(cache_lock);
         bool result = cache_obj.remove(key);
     }
 
