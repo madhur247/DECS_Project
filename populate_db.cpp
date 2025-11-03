@@ -51,7 +51,7 @@ int main(int argc, char* argv[]){
     }
     random_device rd;
     mt19937 gen(rd());
-    uniform_int_distribution<> dist3(1, 50000);
+    uniform_int_distribution<> dist3(1, 100);
     string key, value;
     for(int i=0;i<rows;i++){
         int val_len = dist3(gen);

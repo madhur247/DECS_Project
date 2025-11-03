@@ -1,5 +1,6 @@
 server
 client
+<<<<<<< HEAD
 loadgen
 mysql.log
 kv.log
@@ -7,3 +8,12 @@ kv.log
 loadgen.log
 populate_db
 reset_db
+=======
+.vscode/
+loadgen
+kv.log
+mysql.log
+reset_db
+loadgen.log
+populate_db
+>>>>>>> rwlock
