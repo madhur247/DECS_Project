@@ -7,7 +7,9 @@
 #include <mutex>
 #include <queue>
 #include <csignal>
+#define MAX_DB_CONNS 50
 using namespace std;
+
 
 struct kvnode{
     struct kvnode *prev;
@@ -290,7 +292,7 @@ int main() {
         cerr << "Query failed: " << mysql_error(conn) << "\n";
     }
     mysql_close(conn);
-    for(int i=0;i<20;i++){
+    for(int i=0;i<MAX_DB_CONNS;i++){
         Queue.push(connect_db());
     }
     

@@ -22,17 +22,17 @@ LOAD_GEN="./loadgen"
 MYSQLD="/usr/sbin/mysqld"        
 
 echo "Starting Mysql..."
-taskset -c 0 $MYSQLD --defaults-file=/etc/mysql/my.cnf &> mysql.log &
+taskset -c 0,1 $MYSQLD --defaults-file=/etc/mysql/my.cnf &> mysql.log &
 MYSQL_PID=$!
 sleep 5
 
 echo "Starting KV server..."
-taskset -c 1 $KV_SERVER &> kv.log &
+taskset -c 2,3 $KV_SERVER &> kv.log &
 KV_PID=$!
 sleep 2
 
 echo "Starting load generator..."
-taskset -c 2 $LOAD_GEN $1 $2 $3
+taskset -c 4,5 $LOAD_GEN $1 $2 $3
 LOAD_EXIT=$?
 
 echo "Stopping KV server and MySQL..."
