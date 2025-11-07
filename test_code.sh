@@ -9,6 +9,8 @@ echo "Done"
 # echo "Resetting Database..."
 # ./src/reset_db
 
+mkdir -p logs
+
 echo "Starting server..."
 ./src/server_multi &> logs/server_multi.log &
 KV_PID=$!
