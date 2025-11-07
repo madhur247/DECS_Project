@@ -12,3 +12,4 @@ client_multi
 server_multi
 load_gen.cpp
 populate_db.cpp
+test_server_load.sh
