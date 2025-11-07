@@ -10,3 +10,4 @@ reset_db
 server_multi.log
 client_multi
 server_multi
+load_gen.cpp
