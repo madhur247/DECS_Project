@@ -314,8 +314,24 @@ void readall_handler(const httplib::Request& req, httplib::Response& res) {
 int main() {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
-    MYSQL* conn = connect_db();
-    string query = "CREATE TABLE IF NOT EXISTS history ( row_id INT AUTO_INCREMENT PRIMARY KEY, user_id VARCHAR(255) NOT NULL, term TEXT NOT NULL)";
+    MYSQL* conn = mysql_init(nullptr);
+    if (!conn) {
+        cerr << "mysql_init() failed\n";
+        exit(1);
+    }
+
+    if (!mysql_real_connect(conn, "localhost", "kv_user", "123456", nullptr, 3306, nullptr, 0)) {
+        cerr << "mysql_real_connect() failed: " << mysql_error(conn) << "\n";
+        mysql_close(conn);
+        exit(1);
+    }
+    string query = "CREATE DATABASE IF NOT EXISTS kvstore";
+    if(mysql_query(conn, query.c_str())!=0){
+        cerr << "Query failed: " << mysql_error(conn) << "\n";
+    }
+    mysql_close(conn);
+    conn = connect_db();
+    query = "CREATE TABLE IF NOT EXISTS history ( row_id INT AUTO_INCREMENT PRIMARY KEY, user_id VARCHAR(255) NOT NULL, term TEXT NOT NULL)";
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
     }
