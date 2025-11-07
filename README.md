@@ -31,7 +31,7 @@ The server prioritizes cache hits for fast access and falls back to the database
 
 ## Setup
 
-1. Create a user `kv_user` with password `123456`.
+1. Create a user in MySQL `kv_user` with password `123456`.
 2. Make sure you have a c++ compiler installed in your system.
 3. Run the test_code.sh file
 
