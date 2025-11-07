@@ -4,17 +4,19 @@
 #include <iostream>
 #include <unordered_map>
 #include <condition_variable>
-#include <mutex>
 #include <queue>
 #include <csignal>
+#include <deque>
+#include "json.hpp"
 #define MAX_DB_CONNS 50
-using namespace std;
 
+using namespace std;
 
 struct kvnode{
     struct kvnode *prev;
-    string key;
-    string value;
+    string user_id;
+    deque<string> terms;
+    int index;
     struct kvnode *next;
 };
 
@@ -29,7 +31,7 @@ class Cache{
     Cache(){
         head=nullptr;
         tail=nullptr;
-        max_cache_size = 3;
+        max_cache_size = 500;
         curr_cache_size = 0;
     }
 
@@ -45,18 +47,27 @@ class Cache{
         head = newnode;
     }
     public:
-    bool add(string key, string value){
-        if(cache_map.find(key)!=cache_map.end()){
-            return false;
+    void add(string user_id, string term){
+        if(cache_map.find(user_id)!=cache_map.end()){
+            struct kvnode *newnode = cache_map[user_id];
+            if(newnode->index < 4){
+                newnode->terms.push_front(term);
+                newnode->index++;
+            }
+            else{
+                newnode->terms.pop_back();
+                newnode->terms.push_front(term);
+            }
         }
         else{
             struct kvnode *newnode;
             newnode = new struct kvnode;
-            newnode->key = key;
-            newnode->value = value;
+            newnode->user_id = user_id;
+            newnode->terms.push_front(term);
+            newnode->index = 0;
             newnode->prev = nullptr;
             if(curr_cache_size==max_cache_size){
-                remove(tail->key);
+                remove_tail();
             }
             if(head==nullptr && tail==nullptr){
                 newnode->next = nullptr;
@@ -67,18 +78,17 @@ class Cache{
                 head->prev = newnode;
             }
             head = newnode;
-            cache_map[key] = newnode;
+            cache_map[user_id] = newnode;
             curr_cache_size++;
-            return true;
         }
     }
 
-    bool read(string key, string *value){
-        if (cache_map.find(key) != cache_map.end()) {
-            struct kvnode *newnode = cache_map[key];
+    bool read(string user_id, deque<string> *value){
+        if (cache_map.find(user_id) != cache_map.end()) {
+            struct kvnode *newnode = cache_map[user_id];
             if(newnode!=head)
                 moveToFront(newnode);
-            *value = newnode->value;
+            *value = newnode->terms;
             return true;
         }
         else{
@@ -86,12 +96,28 @@ class Cache{
         }
     }
     
-    bool update(string key, string value){
-        if (cache_map.find(key) != cache_map.end()) {
-            struct kvnode *newnode = cache_map[key];
-            if(newnode!=head)
-                moveToFront(newnode);
-            newnode->value = value;
+    bool insert(string user_id, deque<string> terms){
+        if (cache_map.find(user_id) == cache_map.end()) {
+            struct kvnode *newnode;
+            newnode = new struct kvnode;
+            newnode->user_id = user_id;
+            newnode->terms = terms;
+            newnode->index = terms.size()-1;
+            newnode->prev = nullptr;
+            if(curr_cache_size==max_cache_size){
+                remove_tail();
+            }
+            if(head==nullptr && tail==nullptr){
+                newnode->next = nullptr;
+                tail = newnode;
+            }
+            else{
+                newnode->next = head;
+                head->prev = newnode;
+            }
+            head = newnode;
+            cache_map[user_id] = newnode;
+            curr_cache_size++;
             return true;
         }
         else{
@@ -99,25 +125,20 @@ class Cache{
         }
     }
 
-    bool remove(string key){
-        if (cache_map.find(key) != cache_map.end()) {
-            struct kvnode *newnode = cache_map[key];
-            if(newnode!=head)
-                newnode->prev->next = newnode->next;
-            else{
-                head = newnode->next;
-                if(head!=nullptr)
-                    head->prev = nullptr;
+    bool remove_tail(){
+        if (tail!=nullptr) {
+            string user_id = tail->user_id;
+            if(head!=tail){
+                tail->prev->next = tail->next;
             }
-            if(newnode!=tail)
-                newnode->next->prev = newnode->prev;
             else{
-                tail = newnode->prev;
-                if(tail!=nullptr)
-                    tail->next = nullptr;
+                head = nullptr;
             }
-            delete newnode;
-            cache_map.erase(key);
+            struct kvnode *ptr = tail;
+            tail = tail->prev;
+            ptr->terms.clear();
+            delete ptr;
+            cache_map.erase(user_id);
             curr_cache_size--;
             return true;
         }
@@ -178,22 +199,18 @@ void signal_handler(int signal){
 }
 
 void create_handler(const httplib::Request& req, httplib::Response& res) {
-    string key = req.get_param_value("key");
-    string value = req.get_param_value("value");
+    string user_id = req.get_param_value("user_id");
+    string term = req.get_param_value("term");
     string query;
     {
         unique_lock<mutex> lock(cache_lock);
-        bool added = cache_obj.add(key,value);
-        if(!added){
-            res.set_content("Key Already Exists", "text/plain");
-            return;
-        }
+        cache_obj.add(user_id,term);
     }
-    query = "INSERT INTO kvpairs VALUES ('" + key + "', '" + value + "')";
+    query = "INSERT INTO history (user_id, term) VALUES ('" + user_id + "', '" + term + "')";
     MYSQL* conn = get_connection();
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
-        res.set_content("Key Already Exists! Not created", "text/plain");
+        res.set_content("DB Error", "text/plain");
     }else{
         res.set_content("OK", "text/plain");
     }
@@ -201,84 +218,95 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
 }
 
 void read_handler(const httplib::Request& req, httplib::Response& res) {
-    string key = req.get_param_value("key");
-    string value;
+    string user_id = req.get_param_value("user_id");
+    string count = req.get_param_value("count");
+    if(count.empty()){
+        count = "5";
+    }
+    int c = stoi(count);
+    if(c>5)
+    c=5;
+    deque<string> terms, ret_terms;
 
     {
         unique_lock<mutex> lock(cache_lock);
-        bool present = cache_obj.read(key, &value);
+        bool present = cache_obj.read(user_id, &terms);
         if(present){
-            res.set_content(value, "text/plain");
+            if(c>terms.size())
+            c = terms.size();
+            nlohmann::json json_body = deque<string>(terms.begin(),terms.begin()+c);
+            res.set_content("Cache hit: "+json_body.dump(), "application/json");
             return;
         }
     }
 
     MYSQL* conn = get_connection();
-    string query = "SELECT value FROM kvpairs WHERE `key`='" + key + "'";
+    string query = "SELECT term FROM history WHERE user_id='" + user_id + "' ORDER BY row_id DESC LIMIT 5";
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
-    }
-    MYSQL_RES* result = mysql_store_result(conn);
-    MYSQL_ROW row = mysql_fetch_row(result);
-    if (row) {
-        value = row[0];
-        {
-            unique_lock<mutex> lock(cache_lock);
-            bool result = cache_obj.add(key,value);
-        }
-        res.set_content(value, "text/plain");
-    } else {
-        res.status = 404;
-        res.set_content("Key not found", "text/plain");
-    }
-    mysql_free_result(result);
-    put_connection(conn);
-}
-
-void update_handler(const httplib::Request& req, httplib::Response& res) {
-    string key = req.get_param_value("key");
-    string value = req.get_param_value("value");
-    string query;
-    bool present;
-    {
-        unique_lock<mutex> lock(cache_lock);
-        present = cache_obj.update(key,value);
-    }
-    MYSQL* conn = get_connection();
-    query = "UPDATE kvpairs SET value='" + value + "' WHERE `key`='" + key + "'";
-    if(mysql_query(conn, query.c_str())!=0){
-        cerr << "Query failed: " << mysql_error(conn) << "\n";
-        res.set_content("Key not found", "text/plain");
-    }else{
-        res.set_content("OK", "text/plain");
-        if(!present){
-            {
-                unique_lock<mutex> lock(cache_lock);
-                bool result = cache_obj.add(key,value);
-            }
-        }
-    }
-    put_connection(conn);
-}
-
-void delete_handler(const httplib::Request& req, httplib::Response& res) {
-    string key = req.get_param_value("key");
-    {
-        unique_lock<mutex> lock(cache_lock);
-        bool result = cache_obj.remove(key);
-    }
-
-    MYSQL* conn = get_connection();
-    string query = "DELETE FROM kvpairs WHERE `key`='" + key + "'";
-    if(mysql_query(conn, query.c_str())!=0){
-        cerr << "Query failed: " << mysql_error(conn) << "\n";
-    }
-    if(mysql_affected_rows(conn)==0){
-        res.status = 404;
-        res.set_content("Key not found", "text/plain");
+        res.set_content("DB Error","text/plain");
     }
     else{
-         res.set_content("OK", "text/plain");
+        MYSQL_RES* result = mysql_store_result(conn);
+        MYSQL_ROW row;
+        while ((row = mysql_fetch_row(result))) {
+            string term = row[0];
+            terms.push_back(term);
+            if(c-- > 0){
+                ret_terms.push_back(term);
+            }
+        }
+        if(terms.size()>0){
+            {
+                unique_lock<mutex> lock(cache_lock);
+                cache_obj.insert(user_id,terms);
+            }
+            nlohmann::json json_body = ret_terms;
+            res.set_content("DB hit: "+json_body.dump(), "application/json");
+        }
+        else {
+            res.status = 404;
+            res.set_content("Key not found", "text/plain");
+        }
+        mysql_free_result(result);
+    }
+    put_connection(conn);
+}
+
+void readall_handler(const httplib::Request& req, httplib::Response& res) {
+    string user_id = req.get_param_value("user_id");
+    deque<string> terms, terms5;
+    MYSQL* conn = get_connection();
+    string query = "SELECT term FROM history WHERE user_id='" + user_id + "' ORDER BY row_id DESC";
+    if(mysql_query(conn, query.c_str())!=0){
+        cerr << "Query failed: " << mysql_error(conn) << "\n";
+        res.set_content("DB Error","text/plain");
+    }
+    else{
+        MYSQL_RES* result = mysql_store_result(conn);
+        MYSQL_ROW row;
+        int count=0;
+        while ((row = mysql_fetch_row(result))) {
+            string term = row[0];
+            terms.push_back(term);
+            if(count<5){
+                terms5.push_back(term);
+                count++;
+            }
+        }
+        if(terms.size()>0){
+            {
+                unique_lock<mutex> lock(cache_lock);
+                cache_obj.insert(user_id,terms5);
+            }
+            nlohmann::json json_body = terms;
+            res.set_content(json_body.dump(), "application/json");
+        }
+        else {
+            res.status = 404;
+            res.set_content("Key not found", "text/plain");
+        }
+        mysql_free_result(result);
     }
     put_connection(conn);
 }
@@ -287,7 +315,7 @@ int main() {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
     MYSQL* conn = connect_db();
-    string query = "CREATE TABLE IF NOT EXISTS kvpairs ( `key` VARCHAR(20) PRIMARY KEY, value TEXT NOT NULL)";
+    string query = "CREATE TABLE IF NOT EXISTS history ( row_id INT AUTO_INCREMENT PRIMARY KEY, user_id VARCHAR(255) NOT NULL, term TEXT NOT NULL)";
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
     }
@@ -298,8 +326,7 @@ int main() {
     
     svr.Post("/create", create_handler);
     svr.Get("/read", read_handler);
-    svr.Put("/update",update_handler);
-    svr.Delete("/delete", delete_handler);
+    svr.Get("/readall",readall_handler);
     cout << "Server running on port 8080...\n";
     svr.listen("0.0.0.0", 8080);
 }

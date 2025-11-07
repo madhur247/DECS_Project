@@ -34,41 +34,18 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
     double total_resptime = 0;
     if(load_type == 1){
         do {
-            string key;
-            uniform_int_distribution<> dist(1, 3);
-            int cmd = dist(gen);
-            key = to_string(count);
+            string user_id;
+            user_id = to_string(count%1000);
             uniform_int_distribution<> dist3(1, 100);
-            int val_len = dist3(gen);
-            if (cmd == 1) {
-                string value = generateRandomString(val_len);
-                string body = "key=" + key + "&value=" + value;
-                req_sent = chrono::steady_clock::now();
-                auto res = cli.Post("/create", body, "application/x-www-form-urlencoded");
-                resp_recvd = chrono::steady_clock::now();
-                resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
-                if (!res) cerr << "Request failed\n";
-                // else cout<<res->body<<endl;
-            } else if(cmd == 2){
-                string value = generateRandomString(val_len);
-                string body = "key=" + key + "&value=" + value;
-                req_sent = chrono::steady_clock::now();
-                auto res = cli.Put("/update", body, "application/x-www-form-urlencoded");
-                resp_recvd = chrono::steady_clock::now();
-                resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
-                if (!res) cerr << "Request failed\n";
-                // else cout<<res->body<<endl;
-            } else if (cmd == 3) {
-                string query = "/delete?key=" + key;
-                req_sent = chrono::steady_clock::now();
-                auto res = cli.Delete(query.c_str());
-                resp_recvd = chrono::steady_clock::now();
-                resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
-                if (!res) cerr << "Request failed\n";
-                // else cout<<res->body<<endl;
-            } else {
-                cout << "Unknown command\n";
-            }
+            int term_len = dist3(gen);
+            string term = generateRandomString(term_len);
+            string body = "user_id=" + user_id + "&term=" + term;
+            req_sent = chrono::steady_clock::now();
+            auto res = cli.Post("/create", body, "application/x-www-form-urlencoded");
+            resp_recvd = chrono::steady_clock::now();
+            resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
+            if (!res) cerr << "Request failed\n";
+            // else cout<<res->body<<endl;
             count++;
             total_resptime+=resp_time.count();
             now = chrono::steady_clock::now();
@@ -76,10 +53,10 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
         } while(duration.count()<milli);
     }
     else if(load_type == 2){
-        string key;
+        string user_id;
         do {   
-            key = to_string(count);
-            string query = "/read?key=" + key;
+            user_id = to_string(count%1000);
+            string query = "/read?user_id=" + user_id;
             req_sent = chrono::steady_clock::now();
             auto res = cli.Get(query.c_str());
             resp_recvd = chrono::steady_clock::now();
@@ -93,10 +70,10 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
         } while(duration.count()<milli);
     }
     else if(load_type == 3){
-        string key;
+        string user_id;
         do {
-            key = to_string(count%50);
-            string query = "/read?key=" + key;
+            user_id = to_string(count%50);
+            string query = "/read?user_id=" + user_id;
             req_sent = chrono::steady_clock::now();
             auto res = cli.Get(query.c_str());
             resp_recvd = chrono::steady_clock::now();
@@ -111,53 +88,16 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
         } while(duration.count()<milli);
     }
     else if(load_type == 4){
-        do {
-            string key;
-            uniform_int_distribution<> dist(1, 4);
-            int cmd = dist(gen);
-            uniform_int_distribution<> dist2(1, 10000);
-            int key_int  = dist2(gen);
-            key = to_string(key_int);
-            uniform_int_distribution<> dist3(1, 100);
-            int val_len = dist3(gen);
-
-            if (cmd == 1) {
-                string value = generateRandomString(val_len);
-                string body = "key=" + key + "&value=" + value;
-                req_sent = chrono::steady_clock::now();
-                auto res = cli.Post("/create", body, "application/x-www-form-urlencoded");
-                resp_recvd = chrono::steady_clock::now();
-                resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
-                if (!res) cerr << "Request failed\n";
-                // else cout<<res->body<<endl;
-            } else if (cmd == 2) {
-                string query = "/read?key=" + key;
-                req_sent = chrono::steady_clock::now();
-                auto res = cli.Get(query.c_str());
-                resp_recvd = chrono::steady_clock::now();
-                resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
-                if (!res) cerr << "Request failed\n";
-                // else cout<<res->body<<endl;
-            } else if(cmd == 3){
-                string value = generateRandomString(val_len);
-                string body = "key=" + key + "&value=" + value;
-                req_sent = chrono::steady_clock::now();
-                auto res = cli.Put("/update", body, "application/x-www-form-urlencoded");
-                resp_recvd = chrono::steady_clock::now();
-                resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
-                if (!res) cerr << "Request failed\n";
-                // else cout<<res->body<<endl;
-            } else if (cmd == 4) {
-                string query = "/delete?key=" + key;
-                req_sent = chrono::steady_clock::now();
-                auto res = cli.Delete(query.c_str());
-                resp_recvd = chrono::steady_clock::now();
-                resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
-                if (!res) cerr << "Request failed\n";
-                // else cout<<res->body<<endl;
-            } else {
-                cout << "Unknown command\n";
-            }
+       string user_id;
+        do {   
+            user_id = to_string(count%1000);
+            string query = "/readall?user_id=" + user_id;
+            req_sent = chrono::steady_clock::now();
+            auto res = cli.Get(query.c_str());
+            resp_recvd = chrono::steady_clock::now();
+            resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
+            if (!res) cerr << "Request failed\n";
+            // else cout<<res->body<<endl;
             count++;
             total_resptime+=resp_time.count();
             now = chrono::steady_clock::now();

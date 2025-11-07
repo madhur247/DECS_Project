@@ -21,7 +21,7 @@ MYSQL* connect_db() {
 
 int main(){
     MYSQL* conn = connect_db();
-    string query = "DROP TABLE IF EXISTS kvpairs";
+    string query = "DROP TABLE IF EXISTS history";
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
     }

@@ -45,19 +45,19 @@ int main(int argc, char* argv[]){
         return 1;
     }
     MYSQL* conn = connect_db();
-    string query = "CREATE TABLE IF NOT EXISTS kvpairs ( `key` VARCHAR(20) PRIMARY KEY, value TEXT NOT NULL)";
+    string query = "CREATE TABLE IF NOT EXISTS history ( row_id INT AUTO_INCREMENT PRIMARY KEY, user_id VARCHAR(255) NOT NULL, term TEXT NOT NULL)";
     if(mysql_query(conn, query.c_str())!=0){
         cerr << "Query failed: " << mysql_error(conn) << "\n";
     }
     random_device rd;
     mt19937 gen(rd());
     uniform_int_distribution<> dist3(1, 100);
-    string key, value;
+    string user_id, term;
     for(int i=0;i<rows;i++){
-        int val_len = dist3(gen);
-        key = to_string(i);
-        value = generateRandomString(val_len);
-        query = "INSERT INTO kvpairs VALUES ('" + key + "', '" + value + "')";
+        int term_len = dist3(gen);
+        user_id = to_string(i%1000);
+        term = generateRandomString(term_len);
+        query = "INSERT INTO history (user_id, term) VALUES ('" + user_id + "', '" + term + "')";
         if(mysql_query(conn, query.c_str())!=0){
             cerr << "Query failed: " << mysql_error(conn) << "\n";
         }

@@ -4,38 +4,36 @@ using namespace std;
 int main() {
 
     while (true) {
-        httplib::Client cli("localhost", 8080);
-        string command, key, value;
-        cout << "\nEnter command (create/read/update/delete/exit): ";
+        httplib::Client cli("192.168.82.1", 8080);
+        string command, user_id, term;
+        cout << "\nEnter command (create/read/readall/exit): ";
         cin >> command;
 
         if (command == "exit") break;
 
-        cout << "Enter key: ";
-        cin >> key;
+        cout << "Enter user_id: ";
+        cin >> user_id;
+        cin.ignore();
 
         if (command == "create") {
-            cout << "Enter value: ";
-            cin >> value;
-            string body = "key=" + key + "&value=" + value;
+            cout << "Enter search term: ";
+            getline(cin,term);
+            string body = "user_id=" + user_id + "&term=" + term;
             auto res = cli.Post("/create", body, "application/x-www-form-urlencoded");
             if (res) cout << res->body << "\n";
             else cerr << "Request failed\n";
         } else if (command == "read") {
-            string query = "/read?key=" + key;
+            string count;
+            cout<<"Enter a count < 5 (OR Press Enter for count=5): ";
+            getline(cin,count);
+            string query = "/read?user_id=" + user_id + "&count=" + count;
             auto res = cli.Get(query.c_str());
             if (res) cout << res->body << "\n";
             else cerr << "Request failed\n";
-        } else if (command == "update") {
-            cout << "Enter value: ";
-            cin >> value;
-            string body = "key=" + key + "&value=" + value;
-            auto res = cli.Put("/update", body, "application/x-www-form-urlencoded");
-            if (res) cout << res->body << "\n";
-            else cerr << "Request failed\n";
-        } else if (command == "delete") {
-            string query = "/delete?key=" + key;
-            auto res = cli.Delete(query.c_str());
+        } 
+        else if (command == "readall") {
+            string query = "/readall?user_id=" + user_id;
+            auto res = cli.Get(query.c_str());
             if (res) cout << res->body << "\n";
             else cerr << "Request failed\n";
         } else {
