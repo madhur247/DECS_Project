@@ -25,7 +25,7 @@ This project implements a key-multivalue search history service using a C++ HTTP
 
 ## Architecture
 
-![System Architecture Diagram](DECS_Project_architecture.png)
+![System Architecture Diagram](DECS_Project_Architecture.png)
 
 The server prioritizes cache hits for fast access and falls back to the database on misses. The LRU cache ensures efficient memory usage and fast lookups.
 
