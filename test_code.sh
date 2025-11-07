@@ -1,21 +1,21 @@
 #!/bin/bash
 
 echo "Compiling files..."
-g++ server.cpp -o server_multi -std=c++17 -lmysqlclient
-g++ client.cpp -o client_multi -std=c++17
-g++ reset_db.cpp -o reset_db -lmysqlclient
+g++ src/server.cpp -o src/server_multi -std=c++17 -lmysqlclient
+g++ src/client.cpp -o src/client_multi -std=c++17
+g++ src/reset_db.cpp -o src/reset_db -lmysqlclient
 echo "Done"
 
 # echo "Resetting Database..."
-# ./reset_db
+# ./src/reset_db
 
 echo "Starting server..."
-./server_multi &> server_multi.log &
+./src/server_multi &> logs/server_multi.log &
 KV_PID=$!
 sleep 2
 
 echo "Starting client..."
-./client_multi 
+./src/client_multi 
 
 echo "Stopping server..."
 kill -SIGINT $KV_PID

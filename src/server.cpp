@@ -1,4 +1,4 @@
-#include "httplib.h"
+#include "../include/httplib.h"
 #include <mysql/mysql.h>
 #include <mutex>
 #include <iostream>
@@ -7,7 +7,7 @@
 #include <queue>
 #include <csignal>
 #include <deque>
-#include "json.hpp"
+#include "../include/json.hpp"
 #define MAX_DB_CONNS 50
 
 using namespace std;
