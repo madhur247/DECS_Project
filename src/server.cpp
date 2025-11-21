@@ -1,4 +1,5 @@
 #include "../include/httplib.h"
+#include <functional>
 #include <mysql/mysql.h>
 #include <mutex>
 #include <iostream>
@@ -9,6 +10,7 @@
 #include <deque>
 #include "../include/json.hpp"
 #define MAX_DB_CONNS 50
+#define NUM_CACHE_BUCKETS 16
 
 using namespace std;
 
@@ -58,6 +60,8 @@ class Cache{
                 newnode->terms.pop_back();
                 newnode->terms.push_front(term);
             }
+            if(newnode!=head)
+                moveToFront(newnode);
         }
         else{
             struct kvnode *newnode;
@@ -146,8 +150,8 @@ class Cache{
             return false;
     }
 };
-Cache cache_obj;
-mutex cache_lock;
+Cache cache_obj[NUM_CACHE_BUCKETS];
+mutex cache_lock[NUM_CACHE_BUCKETS];
 condition_variable cv;
 mutex mutx;
 queue<MYSQL*> Queue;
@@ -198,13 +202,18 @@ void signal_handler(int signal){
     exit(0);
 }
 
+size_t get_bucket_index(const string& user_id) {
+    return hash<string>{}(user_id) % NUM_CACHE_BUCKETS;
+}
+
 void create_handler(const httplib::Request& req, httplib::Response& res) {
     string user_id = req.get_param_value("user_id");
     string term = req.get_param_value("term");
+    size_t index = get_bucket_index(user_id);
     string query;
     {
-        unique_lock<mutex> lock(cache_lock);
-        cache_obj.add(user_id,term);
+        unique_lock<mutex> lock(cache_lock[index]);
+        cache_obj[index].add(user_id,term);
     }
     query = "INSERT INTO history (user_id, term) VALUES ('" + user_id + "', '" + term + "')";
     MYSQL* conn = get_connection();
@@ -220,6 +229,7 @@ void create_handler(const httplib::Request& req, httplib::Response& res) {
 void read_handler(const httplib::Request& req, httplib::Response& res) {
     string user_id = req.get_param_value("user_id");
     string count = req.get_param_value("count");
+    size_t index = get_bucket_index(user_id);
     if(count.empty()){
         count = "5";
     }
@@ -229,8 +239,8 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
     deque<string> terms, ret_terms;
 
     {
-        unique_lock<mutex> lock(cache_lock);
-        bool present = cache_obj.read(user_id, &terms);
+        unique_lock<mutex> lock(cache_lock[index]);
+        bool present = cache_obj[index].read(user_id, &terms);
         if(present){
             if(c>terms.size())
             c = terms.size();
@@ -258,8 +268,8 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
         }
         if(terms.size()>0){
             {
-                unique_lock<mutex> lock(cache_lock);
-                cache_obj.insert(user_id,terms);
+                unique_lock<mutex> lock(cache_lock[index]);
+                cache_obj[index].insert(user_id,terms);
             }
             nlohmann::json json_body = ret_terms;
             res.set_content("DB hit: "+json_body.dump(), "application/json");
@@ -275,6 +285,7 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
 
 void readall_handler(const httplib::Request& req, httplib::Response& res) {
     string user_id = req.get_param_value("user_id");
+    size_t index = get_bucket_index(user_id);
     deque<string> terms, terms5;
     MYSQL* conn = get_connection();
     string query = "SELECT term FROM history WHERE user_id='" + user_id + "' ORDER BY row_id DESC";
@@ -296,8 +307,8 @@ void readall_handler(const httplib::Request& req, httplib::Response& res) {
         }
         if(terms.size()>0){
             {
-                unique_lock<mutex> lock(cache_lock);
-                cache_obj.insert(user_id,terms5);
+                unique_lock<mutex> lock(cache_lock[index]);
+                cache_obj[index].insert(user_id,terms5);
             }
             nlohmann::json json_body = terms;
             res.set_content(json_body.dump(), "application/json");
