@@ -4,7 +4,16 @@
 #include <random>
 #include <chrono>
 #include <ctime>
+#include <atomic>
+
 using namespace std;
+
+std::atomic<bool> test_running(true); 
+
+void timer_handler(int seconds) {
+    this_thread::sleep_for(chrono::seconds(seconds));
+    test_running.store(false); 
+}
 
 string generateRandomString(size_t length) {
     const string charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -21,17 +30,15 @@ string generateRandomString(size_t length) {
 
 void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resptime, int load_type){
     random_device rd;
-    int milli = seconds*1000;
     mt19937 gen(rd());
-    httplib::Client cli("192.168.82.1", 8080);
-    auto start = chrono::steady_clock::now();
-    auto now = start;
-    auto duration = chrono::duration_cast<chrono::milliseconds>(now-start);
-    u_int64_t count = 0;
+    httplib::Client cli("172.17.0.1", 8080);
+    
     auto req_sent = chrono::steady_clock::now();
     auto resp_recvd = req_sent;
     auto resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
     double total_resptime = 0;
+    u_int64_t count = 0;
+
     if(load_type == 1){
         do {
             string user_id;
@@ -45,12 +52,9 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
             resp_recvd = chrono::steady_clock::now();
             resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
             if (!res) cerr << "Request failed\n";
-            // else cout<<res->body<<endl;
             count++;
             total_resptime+=resp_time.count();
-            now = chrono::steady_clock::now();
-            duration = chrono::duration_cast<chrono::milliseconds>(now-start);
-        } while(duration.count()<milli);
+        } while(test_running.load());
     }
     else if(load_type == 2){
         string user_id;
@@ -62,17 +66,14 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
             resp_recvd = chrono::steady_clock::now();
             resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
             if (!res) cerr << "Request failed\n";
-            // else cout<<res->body<<endl;
             count++;
             total_resptime+=resp_time.count();
-            now = chrono::steady_clock::now();
-            duration = chrono::duration_cast<chrono::milliseconds>(now-start);
-        } while(duration.count()<milli);
+        } while(test_running.load());
     }
     else if(load_type == 3){
         string user_id;
         do {
-            user_id = to_string(count%50);
+            user_id = to_string(count%100);
             string rcount = to_string((count%5) + 1);
             string query = "/read?user_id=" + user_id + "&count=" + rcount;
             req_sent = chrono::steady_clock::now();
@@ -80,13 +81,9 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
             resp_recvd = chrono::steady_clock::now();
             resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
             if (!res) cerr << "Request failed\n";
-            // else cout<<res->body<<endl;
             count++;
             total_resptime+=resp_time.count();
-            now = chrono::steady_clock::now();
-            duration = chrono::duration_cast<chrono::milliseconds>(now-start);
-            
-        } while(duration.count()<milli);
+        } while(test_running.load());
     }
     else if(load_type == 4){
        string user_id;
@@ -98,13 +95,11 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
             resp_recvd = chrono::steady_clock::now();
             resp_time = chrono::duration_cast<chrono::microseconds>(resp_recvd-req_sent);
             if (!res) cerr << "Request failed\n";
-            // else cout<<res->body<<endl;
             count++;
             total_resptime+=resp_time.count();
-            now = chrono::steady_clock::now();
-            duration = chrono::duration_cast<chrono::milliseconds>(now-start);
-        } while(duration.count()<milli);
+        } while(test_running.load());
     }
+    
     *thread_requests = count;
     *thread_resptime = total_resptime/1000;
     cli.stop();
@@ -123,7 +118,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     int seconds = mins*60;
-    cout<<"Starting load test..."<<endl;
+    
+    test_running.store(true); 
+
+    cout<<"Starting load test for "<<seconds<<" seconds..."<<endl;
+    
+    thread timer_thr(timer_handler, seconds);
+
     thread threads[threads_num];
     u_int64_t requests[threads_num];
     double resptimes[threads_num];
@@ -131,6 +132,7 @@ int main(int argc, char* argv[]) {
         threads[i] = thread(thread_handler, seconds, &requests[i], &resptimes[i], load_type);
     }
 
+    timer_thr.join();
     for(int i = 0;i<threads_num;i++){
         threads[i].join();
     }
@@ -143,9 +145,9 @@ int main(int argc, char* argv[]) {
         total_resp_time+=resptimes[i];
         throughput+=(requests[i]/(resptimes[i]/1000));
     }
+    
     cout<< "Avg throughput (resp time) for "<<threads_num<<" threads = "<<throughput<<"req/s"<<endl;
-    cout<< "Avg throughput (total duration) for "<<threads_num<<" threads = "<<(total_requests/seconds)<<"req/s"<<endl;
-    cout<< "Avg response time for "<<threads_num<<" threads = "<<(total_resp_time/total_requests)<<"ms"<<endl;
+    cout<< "Avg throughput (total duration) for "<<threads_num<<" threads = "<<(total_requests/seconds)<<" req/s"<<endl;
+    cout<< "Avg response time for "<<threads_num<<" threads = "<<(total_resp_time/total_requests)<<" ms"<<endl;
     return 0;
 }
-

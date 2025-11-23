@@ -203,7 +203,7 @@ void signal_handler(int signal){
 }
 
 size_t get_bucket_index(const string& user_id) {
-    return hash<string>{}(user_id) % NUM_CACHE_BUCKETS;
+    return stoi(user_id) % NUM_CACHE_BUCKETS;
 }
 
 void create_handler(const httplib::Request& req, httplib::Response& res) {
