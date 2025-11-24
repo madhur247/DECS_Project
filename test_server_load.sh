@@ -7,14 +7,14 @@ g++ src/reset_db.cpp -o reset_db -lmysqlclient
 g++ src/populate_db.cpp -o populate_db -lmysqlclient
 
 echo "Resetting Database..."
-# ./reset_db
+./reset_db
 
 if [ "$3" = "2" ]; then
 echo "Populating Database"
-# ./populate_db 200000
+./populate_db 200000
 elif [ "$3" = "3" ]; then
 echo "Populating Database"
-# ./populate_db 6000
+./populate_db 6000
 fi
 
 KV_SERVER="./server"          

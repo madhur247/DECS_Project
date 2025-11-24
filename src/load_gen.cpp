@@ -73,7 +73,8 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
     else if(load_type == 3){
         string user_id;
         do {
-            user_id = to_string(count%100);
+            uniform_int_distribution<> dist3(1, 100);
+            user_id = to_string(dist3(gen));
             string rcount = to_string((count%5) + 1);
             string query = "/read?user_id=" + user_id + "&count=" + rcount;
             req_sent = chrono::steady_clock::now();
@@ -88,7 +89,8 @@ void thread_handler(int seconds, u_int64_t *thread_requests, double *thread_resp
     else if(load_type == 4){
        string user_id;
         do {   
-            user_id = to_string(count%1000);
+            uniform_int_distribution<> dist3(1, 1000);
+            user_id = to_string(dist3(gen));
             string query = "/readall?user_id=" + user_id;
             req_sent = chrono::steady_clock::now();
             auto res = cli.Get(query.c_str());

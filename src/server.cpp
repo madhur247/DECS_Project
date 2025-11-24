@@ -269,7 +269,7 @@ void read_handler(const httplib::Request& req, httplib::Response& res) {
         if(terms.size()>0){
             {
                 unique_lock<mutex> lock(cache_lock[index]);
-                cache_obj[index].insert(user_id,terms);
+                cache_obj[index].insert(user_id,ret_terms);
             }
             nlohmann::json json_body = ret_terms;
             res.set_content("DB hit: "+json_body.dump(), "application/json");
